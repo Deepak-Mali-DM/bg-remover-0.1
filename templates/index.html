@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BG Remover</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .upload-area { border: 2px dashed #ccc; padding: 40px; text-align: center; cursor: pointer; }
+        .upload-area:hover { border-color: #3b82f6; background: #f0f9ff; }
+        .loading-spinner { border: 4px solid #f3f4f6; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .image-preview { max-width: 100%; max-height: 300px; }
+        .btn { background: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; }
+        .btn:hover { background: #2563eb; }
+    </style>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-center mb-8">BG Remover Pro</h1>
+        
+        <!-- Upload Section -->
+        <div id="uploadSection" class="bg-white rounded-lg shadow p-8">
+            <div id="uploadArea" class="upload-area">
+                <div class="mb-4">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-upload text-blue-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Upload Image</h3>
+                    <p class="text-gray-600 mb-4">Click to choose or drag and drop</p>
+                </div>
+                <button id="uploadBtn" class="btn">
+                    <i class="fas fa-upload mr-2"></i>Choose Image
+                </button>
+                <div class="text-sm text-gray-500 mt-4">Max file size: 20MB</div>
+            </div>
+        </div>
+
+        <!-- Loading Section -->
+        <div id="loadingSection" class="hidden bg-white rounded-lg shadow p-8 text-center">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <h3 class="text-xl font-semibold mb-2">Processing...</h3>
+            <p class="text-gray-600">Removing background</p>
+        </div>
+
+        <!-- Result Section -->
+        <div id="resultSection" class="hidden bg-white rounded-lg shadow p-8">
+            <h3 class="text-2xl font-bold text-center mb-6">Background Removed!</h3>
+            
+            <div class="grid md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h4 class="text-lg font-semibold mb-3 text-center">Original</h4>
+                    <div class="bg-gray-100 rounded p-4 min-h-[250px] flex items-center justify-center">
+                        <img id="originalImage" class="image-preview">
+                    </div>
+                </div>
+                <div>
+                    <h4 class="text-lg font-semibold mb-3 text-center">Result</h4>
+                    <div class="bg-gray-100 rounded p-4 min-h-[250px] flex items-center justify-center">
+                        <img id="processedImage" class="image-preview">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-4 justify-center">
+                <button id="downloadBtn" class="btn">
+                    <i class="fas fa-download mr-2"></i>Download
+                </button>
+                <button id="newImageBtn" class="btn bg-gray-600 hover:bg-gray-700">
+                    <i class="fas fa-plus mr-2"></i>New Image
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+
+    <script>
+        let isProcessing = false;
+        let currentDownloadId = null;
+
+        // Get elements
+        const uploadSection = document.getElementById('uploadSection');
+        const uploadArea = document.getElementById('uploadArea');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
+        const loadingSection = document.getElementById('loadingSection');
+        const resultSection = document.getElementById('resultSection');
+
+        // SINGLE event handler - no duplicates
+        function openFileSelector() {
+            if (!isProcessing) {
+                console.log('Opening file selector');
+                fileInput.click();
+            }
+        }
+
+        // Add only ONE click event to upload area
+        uploadArea.addEventListener('click', openFileSelector);
+        
+        // Add only ONE click event to button
+        uploadBtn.addEventListener('click', function(e) {
+            e.stopPropagation(); // Prevent bubbling to uploadArea
+            openFileSelector();
+        });
+
+        // File input change
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && !isProcessing) {
+                console.log('File selected:', file.name);
+                uploadFile(file);
+            }
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#3b82f6';
+            uploadArea.style.background = '#f0f9ff';
+        });
+
+        uploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#ccc';
+            uploadArea.style.background = '#fff';
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#ccc';
+            uploadArea.style.background = '#fff';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && !isProcessing) {
+                console.log('File dropped:', files[0].name);
+                uploadFile(files[0]);
+            }
+        });
+
+        // Upload function
+        function uploadFile(file) {
+            if (isProcessing) return;
+            
+            isProcessing = true;
+            console.log('Starting upload:', file.name);
+            
+            // Validate
+            if (file.size > 20 * 1024 * 1024) {
+                alert('File too large (max 20MB)');
+                isProcessing = false;
+                return;
+            }
+
+            // Show loading
+            uploadSection.classList.add('hidden');
+            loadingSection.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+
+            // Create form data
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Upload
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Upload response:', data);
+                if (data.success) {
+                    // Show results
+                    document.getElementById('originalImage').src = URL.createObjectURL(file);
+                    document.getElementById('processedImage').src = data.image;
+                    currentDownloadId = data.download_id;
+                    
+                    loadingSection.classList.add('hidden');
+                    resultSection.classList.remove('hidden');
+                } else {
+                    alert('Error: ' + data.error);
+                    resetUpload();
+                }
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                alert('Upload failed');
+                resetUpload();
+            })
+            .finally(() => {
+                isProcessing = false;
+            });
+        }
+
+        // Reset function
+        function resetUpload() {
+            uploadSection.classList.remove('hidden');
+            loadingSection.classList.add('hidden');
+            resultSection.classList.add('hidden');
+            fileInput.value = '';
+            currentDownloadId = null;
+            isProcessing = false;
+        }
+
+        // Download button
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            if (currentDownloadId) {
+                window.location.href = '/api/download/' + currentDownloadId;
+            }
+        });
+
+        // New image button
+        document.getElementById('newImageBtn').addEventListener('click', resetUpload);
+
+        console.log('App loaded - single file selector ready');
+    </script>
+</body>
+</html>
